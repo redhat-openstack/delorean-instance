@@ -1,0 +1,182 @@
+#cloud-config
+disable_root: 0
+groups:
+  - docker: [root]
+users:
+  - default
+  - name: fedora-master 
+    home: /home/fedora-master
+    gecos: Fedora Master
+    groups: users,docker
+    lock-passwd: true
+  - name: centos-master
+    home: /home/centos-master
+    gecos: CentOS Master
+    groups: users,docker
+    lock-passwd: true
+  - name: centos-kilo
+    home: /home/centos-kilo
+    gecos: CentOS Kilo
+    groups: users,docker
+    lock-passwd: true
+package_upgrade: true
+packages:
+  - vim
+  - docker-io
+  - git
+  - python-pip
+  - git-remote-hg
+  - git-hg
+  - python-virtualenv
+  - httpd
+  - gcc
+  - createrepo
+  - screen
+  - python3
+  - python-tox
+  - git-review
+write_files:
+  - content: |
+        #!/bin/bash
+        setenforce 0
+        systemctl enable docker.service
+        systemctl start docker.service
+        systemctl enable httpd.service
+        systemctl start httpd.service
+    path: /root/common-setup.sh
+    permissions: 0744
+
+  - content: |
+        #!/bin/bash
+        LOCK='~/delorean.lock'
+        set -e
+
+        exec 200>$LOCK
+        flock -n 200 || exit 1
+
+        source ~/delorean/.venv/bin/activate
+        LOGFILE=/var/log/delorean/run.$(date +%s).log
+        cd ~/delorean
+
+        echo `date` "Starting delorean run." >> $LOGFILE
+        delorean --config-file /usr/local/share/delorean/${USER}/projects.ini 2>> $LOGFILE
+        echo `date` "Delorean run complete." >> $LOGFILE
+    path:  /usr/local/bin/run-delorean.sh
+    permissions: 0755
+
+  - content: |
+        [DEFAULT]
+        datadir=/home/fedora-master/delorean/data
+        scriptsdir=/home/fedora-master/delorean/scripts
+        baseurl=http://trunk.rdoproject.org/f21
+        distro=f20-master
+        source=master
+        target=fedora
+        smtpserver=localhost
+        reponame=delorean
+    path: /usr/local/share/delorean/fedora-master/projects.ini
+    permissions: 0644    
+
+  - content: |
+        [DEFAULT]
+        datadir=/home/centos-master/delorean/data
+        scriptsdir=/home/centos-master/delorean/scripts
+        baseurl=http://trunk.rdoproject.org/centos7
+        distro=f20-master
+        source=master
+        target=centos
+        smtpserver=localhost
+        reponame=delorean
+    path: /usr/local/share/delorean/centos-master/projects.ini
+    permissions: 0644
+
+  - content: |
+        [DEFAULT]
+        datadir=/home/centos-kilo/delorean/data
+        scriptsdir=/home/centos-kilo/delorean/scripts
+        baseurl=http://trunk.rdoproject.org/kilo/centos7
+        distro=rpm-master
+        source=master
+        target=centos-kilo
+        smtpserver=
+        reponame=delorean-kilo
+    path: /usr/local/share/delorean/centos-kilo/projects.ini
+    permissions: 0644
+
+  - content: |
+        delete from commits where status == "FAILED";
+    path:  /root/fix-fails.sql
+    permissions: 0644
+
+  - content: |
+        [user]
+                email = test@example.com
+                name = Tester Testerson
+    path: /root/.gitconfig
+    permisssions: 0664
+
+  - content: |
+        cd ~
+        git clone https://github.com/openstack-packages/delorean
+        cd ~/delorean
+        virtualenv .venv
+        source .venv/bin/activate
+        pip install -r requirements.txt
+        pip install -r test-requirements.txt
+        python setup.py develop
+        chcon -t docker_exec_t scripts/*
+    path: /tmp/delorean-setup.sh
+    permissions: 0755
+
+  - content: |
+        cd ~/delorean
+        virtualenv .venv
+        source .venv/bin/activate
+        pip install -r requirements.txt
+        pip install -r test-requirements.txt
+        python setup.py develop
+        chcon -t docker_exec_t scripts/*
+        scripts/create_build_image.sh centos
+        scripts/create_build_image.sh fedora
+    path: /root/delorean-build-image.sh
+    permissions: 0744
+
+
+  - content: |
+        #echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        #echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        #echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        ln -s /home/fedora-master/delorean/data/repos /var/www/html/f21
+        ln -s /home/centos-master/delorean/data/repos /var/www/html/centos7
+        ln -s /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
+    path: /root/post-setup.sh
+    permissions: 0744
+
+bootcmd:
+#  - echo "" >> /etc/ssh/sshd_config
+#  - echo "Port 2022" >> /etc/ssh/sshd_config
+#  - systemctl restart sshd
+  - mkdir /var/log/delorean
+  - yum -y install lvm2 xfsprogs
+  - vgremove -f vgdelorean
+  - pvremove -f /dev/vdb
+  - pvcreate -f /dev/vdb
+  - vgcreate vgdelorean /dev/vdb
+  - vgchange -a y vgdelorean
+  - lvcreate -l 100%FREE -n lvol1 vgdelorean
+  - mkfs.xfs /dev/vgdelorean/lvol1
+  - echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
+  - mount -a
+
+runcmd:
+  - script -c "/root/common-setup.sh" /var/log/delorean/common-setup.log
+  - script -c "/tmp/delorean-setup.sh" /var/log/delorean/root-delorean-setup.log
+  - script -c "/root/delorean-build-image.sh" /var/log/delorean/build-images.log
+  - sudo -u fedora-master /tmp/delorean-setup.sh
+  - sudo -u centos-master /tmp/delorean-setup.sh
+  - sudo -u centos-kilo /tmp/delorean-setup.sh
+  - script -c "/root/post-setup.sh" /var/log/delorean/post-setup.log
+
+
+final_message: "Delorean installed, after $UPTIME seconds."
+
