@@ -165,8 +165,11 @@ write_files:
         pip install -r test-requirements.txt
         python setup.py develop
         chcon -t docker_exec_t scripts/*
+        mkdir scripts/dockerfiles/centos-kilo
+        cp -p scripts/dockerfiles/centos/Dockerfile scripts/dockerfiles/centos-kilo
         scripts/create_build_image.sh centos
-        scripts/create_build_image.sh fedora
+        scripts/create_build_image.sh centos-kilo
+        scripts/create_build_image.sh fedora        
     path: /root/delorean-build-image.sh
     permissions: 0744
 
