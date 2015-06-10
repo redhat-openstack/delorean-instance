@@ -19,6 +19,11 @@ users:
     gecos: CentOS Kilo
     groups: users,docker
     lock-passwd: true
+  - name: rdoinfo
+    home: /home/rdoinfo
+    gecos: rdoinfo user
+    groups: users,docker
+    lock-passwd: true
 package_upgrade: true
 packages:
   - vim
@@ -48,20 +53,44 @@ write_files:
 
   - content: |
         #!/bin/bash
-        LOCK='~/delorean.lock'
+        LOCK="/home/${USER}/delorean.lock"
         set -e
 
         exec 200>$LOCK
         flock -n 200 || exit 1
 
         source ~/delorean/.venv/bin/activate
-        LOGFILE=/var/log/delorean/run.$(date +%s).log
+        LOGFILE=/home/${USER}/delorean-run.$(date +%s).log
         cd ~/delorean
 
         echo `date` "Starting delorean run." >> $LOGFILE
-        delorean --config-file /usr/local/share/delorean/${USER}/projects.ini 2>> $LOGFILE
+        delorean --config-file /usr/local/share/delorean/${USER}/projects.ini --info-repo /home/rdoinfo/rdoinfo/ --head-only 2>> $LOGFILE
         echo `date` "Delorean run complete." >> $LOGFILE
     path:  /usr/local/bin/run-delorean.sh
+    permissions: 0755
+
+  - content: |
+        #!/bin/bash
+        LOCK="/home/${USER}/delorean.lock"
+        set -e
+
+        exec 200>$LOCK
+        flock -n 200 || exit 1
+
+        if [ ! -d ~/.rdopkg/conf.d ]
+        then
+            mkdir -p ~/.rdopkg/conf.d
+        fi
+        echo 'RDOINFO_REPO="git://github.com/apevec/rdoinfo-Kilo.git"' > ~/.rdopkg/conf.d/kiloRC.py
+
+        source ~/delorean/.venv/bin/activate
+        LOGFILE=/home/${USER}/delorean-run.$(date +%s).log
+        cd ~/delorean
+
+        echo `date` "Starting delorean run." >> $LOGFILE
+        delorean --config-file /usr/local/share/delorean/${USER}/projects.ini --head-only 2>> $LOGFILE
+        echo `date` "Delorean run complete." >> $LOGFILE
+    path:  /usr/local/bin/run-delorean-kilo.sh
     permissions: 0755
 
   - content: |
@@ -84,7 +113,7 @@ write_files:
         baseurl=http://trunk.rdoproject.org/centos7
         distro=f20-master
         source=master
-        target=centos
+        target=centos-kilo
         smtpserver=localhost
         reponame=delorean
     path: /usr/local/share/delorean/centos-master/projects.ini
@@ -97,7 +126,7 @@ write_files:
         baseurl=http://trunk.rdoproject.org/kilo/centos7
         distro=rpm-master
         source=master
-        target=centos-kilo
+        target=centos
         smtpserver=
         reponame=delorean-kilo
     path: /usr/local/share/delorean/centos-kilo/projects.ini
@@ -141,16 +170,33 @@ write_files:
     path: /root/delorean-build-image.sh
     permissions: 0744
 
-
   - content: |
-        #echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        #echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        #echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        #echo "*/5 * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
         ln -s /home/fedora-master/delorean/data/repos /var/www/html/f21
         ln -s /home/centos-master/delorean/data/repos /var/www/html/centos7
         ln -s /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
+        chmod 755 /home/fedora-master
+        chmod 755 /home/centos-master
+        chmod 755 /home/centos-kilo
+        chmod 755 /home/rdoinfo
     path: /root/post-setup.sh
     permissions: 0744
+
+  - content: |
+        cd ~
+        git clone https://github.com/redhat-openstack/rdoinfo
+    path: /tmp/rdoinfo-setup.sh
+    permissions: 0755
+
+  - content: |
+        cd ~/rdoinfo
+        git remote update
+        git pull
+    path: /usr/local/bin/rdoinfo-update.sh
+    permissions: 0755
 
 bootcmd:
 #  - echo "" >> /etc/ssh/sshd_config
@@ -164,7 +210,7 @@ bootcmd:
   - vgcreate vgdelorean /dev/vdb
   - vgchange -a y vgdelorean
   - lvcreate -l 100%FREE -n lvol1 vgdelorean
-  - mkfs.xfs /dev/vgdelorean/lvol1
+  - mkfs.xfs -f /dev/vgdelorean/lvol1
   - echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
   - mount -a
 
@@ -175,8 +221,7 @@ runcmd:
   - sudo -u fedora-master /tmp/delorean-setup.sh
   - sudo -u centos-master /tmp/delorean-setup.sh
   - sudo -u centos-kilo /tmp/delorean-setup.sh
+  - sudo -u rdoinfo /tmp/rdoinfo-setup.sh
   - script -c "/root/post-setup.sh" /var/log/delorean/post-setup.log
 
-
 final_message: "Delorean installed, after $UPTIME seconds."
-

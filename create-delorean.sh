@@ -1,10 +1,13 @@
 #!/bin/bash
 
-INSTANCE_NAME=delorean-test-3
-VOLUME_NAME=delorean-volume
+INSTANCE_NAME=rdo-delorean-instance
+VOLUME_NAME=rdo-delorean-volume
+IMAGE_ID=f2df087c-4e54-4047-98c0-8e03dbf6412b
+SECGROUP_NAME=jpena-secgroup
+KEY_NAME=jpena-key
 
-cinder create --display-name ${VOLUME_NAME} 160
-sleep 10
+#cinder create --display-name ${VOLUME_NAME} 160
+#sleep 30
 VOLUME_STATUS=$(cinder list |grep ${VOLUME_NAME} | awk '{print $4}')
 if [ ${VOLUME_STATUS} != "available" ]
 then
@@ -12,7 +15,7 @@ then
     exit 1
 fi
 
-nova boot --flavor m1.medium --image f2df087c-4e54-4047-98c0-8e03dbf6412b --security-groups jpena-secgroup --key-name jpena-key --user-data delorean-user-data.txt ${INSTANCE_NAME}
+nova boot --flavor m1.medium --image ${IMAGE_ID} --security-groups ${SECGROUP_NAME} --key-name ${KEY_NAME} --user-data delorean-user-data.txt ${INSTANCE_NAME}
 sleep 30
 CINDER_ID=$(cinder show ${VOLUME_NAME} |grep -w id | awk '{print $4}')
 nova volume-attach ${INSTANCE_NAME} ${CINDER_ID} /dev/vdb
