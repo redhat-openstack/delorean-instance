@@ -101,7 +101,7 @@ write_files:
         distro=f20-master
         source=master
         target=fedora
-        smtpserver=localhost
+        smtpserver=
         reponame=delorean
     path: /usr/local/share/delorean/fedora-master/projects.ini
     permissions: 0644    
@@ -114,7 +114,7 @@ write_files:
         distro=f20-master
         source=master
         target=centos-kilo
-        smtpserver=localhost
+        smtpserver=
         reponame=delorean
     path: /usr/local/share/delorean/centos-master/projects.ini
     permissions: 0644
@@ -185,6 +185,10 @@ write_files:
         chmod 755 /home/centos-master
         chmod 755 /home/centos-kilo
         chmod 755 /home/rdoinfo
+        yum -y install fail2ban
+        printf '[sshd]\nenabled=true\n' > /etc/fail2ban/jail.d/01-sshd.conf
+        systemctl enable fail2ban
+        systemctl start fail2ban
     path: /root/post-setup.sh
     permissions: 0744
 
