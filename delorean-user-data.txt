@@ -189,6 +189,7 @@ write_files:
         printf '[sshd]\nenabled=true\n' > /etc/fail2ban/jail.d/01-sshd.conf
         systemctl enable fail2ban
         systemctl start fail2ban
+        echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
     path: /root/post-setup.sh
     permissions: 0744
 
