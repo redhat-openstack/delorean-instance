@@ -24,6 +24,13 @@ users:
     gecos: rdoinfo user
     groups: users,docker
     lock-passwd: true
+  - name: promoter
+    home: /home/promoter
+    gecos: promoter user
+    groups: users
+    lock-passwd: true
+    ssh-authorized-keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAuT/KZPHtObx4d1GzI7OTG8sFEgyKJsiYl2PRhOL0ugknac8Cv2KHNTN0MgAI3AVCpJaZ+j4bcFWkLCfkj6zmsl0/j3IGn2qCL7YuBeZ5tbvVH1mr0upzwRu8IQSbcHEzSeuPgVpYwUVf/hp4fD7eGlW2vm1ONOljvFDe1DTAL74C0qj6xiu+G1+PSA+RHUhFayIg34TVSnfkUHi+Lq23rR+0CAIzaEI2ClqVVEySktmnP0Y/ZGGXtX0qCrMZd10jAHNWLQ8lTM92nlqamy5eWhMEnU4nnK09iyYtRB+HzcmSU7QZCC1raMbtGgqPsP+IxLJnnpZavNcK39s6uvfKOQ==
 package_upgrade: true
 packages:
   - vim
@@ -40,10 +47,14 @@ packages:
   - python3
   - python-tox
   - git-review
+  - logrotate
 write_files:
   - content: |
         #!/bin/bash
         setenforce 0
+        sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
+        # We will change the sshd port to 330 later
+        semanage port -a -t ssh_port_t -p tcp 330
         systemctl enable docker.service
         systemctl start docker.service
         systemctl enable httpd.service
@@ -59,8 +70,13 @@ write_files:
         exec 200>$LOCK
         flock -n 200 || exit 1
 
+        if [ ! -d /home/${USER}/delorean-logs ]
+        then
+            mkdir -p /home/${USER}/delorean-logs
+        fi
+
         source ~/delorean/.venv/bin/activate
-        LOGFILE=/home/${USER}/delorean-run.$(date +%s).log
+        LOGFILE=/home/${USER}/delorean-logs/delorean-run.$(date +%s).log
         cd ~/delorean
 
         echo `date` "Starting delorean run." >> $LOGFILE
@@ -77,6 +93,11 @@ write_files:
         exec 200>$LOCK
         flock -n 200 || exit 1
 
+        if [ ! -d /home/${USER}/delorean-logs ]
+        then
+            mkdir -p /home/${USER}/delorean-logs
+        fi
+
         if [ ! -d ~/.rdopkg/conf.d ]
         then
             mkdir -p ~/.rdopkg/conf.d
@@ -84,7 +105,7 @@ write_files:
         echo 'RDOINFO_REPO="git://github.com/apevec/rdoinfo-Kilo.git"' > ~/.rdopkg/conf.d/kiloRC.py
 
         source ~/delorean/.venv/bin/activate
-        LOGFILE=/home/${USER}/delorean-run.$(date +%s).log
+        LOGFILE=/home/${USER}/delorean-logs/delorean-run.$(date +%s).log
         cd ~/delorean
 
         echo `date` "Starting delorean run." >> $LOGFILE
@@ -113,7 +134,7 @@ write_files:
         baseurl=http://trunk.rdoproject.org/centos7
         distro=f20-master
         source=master
-        target=centos-kilo
+        target=centos
         smtpserver=
         reponame=delorean
     path: /usr/local/share/delorean/centos-master/projects.ini
@@ -126,7 +147,7 @@ write_files:
         baseurl=http://trunk.rdoproject.org/kilo/centos7
         distro=rpm-master
         source=master
-        target=centos
+        target=centos-kilo
         smtpserver=
         reponame=delorean-kilo
     path: /usr/local/share/delorean/centos-kilo/projects.ini
@@ -146,6 +167,7 @@ write_files:
 
   - content: |
         cd ~
+        ssh-keygen -t rsa -P "" -f ~/.ssh/id_rsa
         git clone https://github.com/openstack-packages/delorean
         cd ~/delorean
         virtualenv .venv
@@ -176,7 +198,7 @@ write_files:
   - content: |
         echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
         #echo "*/5 * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
         ln -s /home/fedora-master/delorean/data/repos /var/www/html/f21
         ln -s /home/centos-master/delorean/data/repos /var/www/html/centos7
@@ -185,10 +207,20 @@ write_files:
         chmod 755 /home/centos-master
         chmod 755 /home/centos-kilo
         chmod 755 /home/rdoinfo
-        yum -y install fail2ban
+        yum -y install fail2ban fail2ban-systemd
         printf '[sshd]\nenabled=true\n' > /etc/fail2ban/jail.d/01-sshd.conf
+        systemctl start firewalld
         systemctl enable fail2ban
         systemctl start fail2ban
+        printf '# promoter can run promote script\npromoter ALL= NOPASSWD: /usr/local/bin/promote.sh\n' > /etc/sudoers.d/99-promoter
+        firewall-cmd --add-port=80/tcp
+        firewall-cmd --add-port=22/tcp
+        firewall-cmd --add-port=330/tcp
+        firewall-cmd --add-port=80/tcp --permanent
+        firewall-cmd --add-port=22/tcp --permanent
+        firewall-cmd --add-port=330/tcp --permanent
+        # Starting firewalld after docker is running breaks its firewall rules
+        systemctl restart docker
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
     path: /root/post-setup.sh
     permissions: 0744
@@ -206,20 +238,56 @@ write_files:
     path: /usr/local/bin/rdoinfo-update.sh
     permissions: 0755
 
+  - content: |
+        /home/fedora-master/delorean-logs/*.log /home/centos-master/delorean-logs/*.log /home/centos-kilo/delorean-logs/*.log {
+            daily
+            compress
+            rotate 0
+        }
+    path: /etc/logrotate.d/delorean
+    permissions: 0644
+
+  - content: |
+        #!/bin/bash -xe
+
+        if [ -z "$1" ]; then
+            echo "Please give me a hash to point at!"
+            exit 1
+        fi
+
+        if [ -z "$2" ]; then
+            echo "Please specify the delorean instance to use!"
+            exit 1
+        fi
+
+        cd /home/${2}/delorean/data/repos
+
+        # verify uniqueness
+        a="$(find . -maxdepth 3 -mindepth 3 -type d -name \*${1}\* | wc -l)"
+        if [ "$a" != "1" ]; then
+            echo "Uniqueness must be enforced!"
+            exit 1
+        fi
+
+        ln -svf */*/*${1}* current-passed-ci
+        echo "$1" >> promote.log
+    path: /usr/local/bin/promote.sh
+    permissions: 0755
+
 bootcmd:
 #  - echo "" >> /etc/ssh/sshd_config
-#  - echo "Port 2022" >> /etc/ssh/sshd_config
+#  - echo "Port 330" >> /etc/ssh/sshd_config
 #  - systemctl restart sshd
-  - mkdir /var/log/delorean
-  - yum -y install lvm2 xfsprogs
-  - vgremove -f vgdelorean
-  - pvremove -f /dev/vdb
-  - pvcreate -f /dev/vdb
-  - vgcreate vgdelorean /dev/vdb
-  - vgchange -a y vgdelorean
-  - lvcreate -l 100%FREE -n lvol1 vgdelorean
-  - mkfs.xfs -f /dev/vgdelorean/lvol1
-  - echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
+  - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
+  - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs ]
+  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
+  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
+  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
+  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
+  - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
+  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
+  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
+  - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
   - mount -a
 
 runcmd:
