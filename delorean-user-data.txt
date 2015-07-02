@@ -199,7 +199,7 @@ write_files:
         echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
-        #echo "*/5 * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
+        echo "7   * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
         ln -s /home/fedora-master/delorean/data/repos /var/www/html/f21
         ln -s /home/centos-master/delorean/data/repos /var/www/html/centos7
         ln -s /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
