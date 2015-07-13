@@ -48,6 +48,7 @@ packages:
   - python-tox
   - git-review
   - logrotate
+  - postfix
 write_files:
   - content: |
         #!/bin/bash
@@ -59,6 +60,8 @@ write_files:
         systemctl start docker.service
         systemctl enable httpd.service
         systemctl start httpd.service
+        systemctl enable postfix
+        systemctl start postfix
     path: /root/common-setup.sh
     permissions: 0744
 
@@ -118,11 +121,11 @@ write_files:
         [DEFAULT]
         datadir=/home/fedora-master/delorean/data
         scriptsdir=/home/fedora-master/delorean/scripts
-        baseurl=http://trunk.rdoproject.org/f21
-        distro=f20-master
+        baseurl=http://209.132.178.14/f21
+        distro=rpm-master
         source=master
         target=fedora
-        smtpserver=
+        smtpserver=localhost
         reponame=delorean
     path: /usr/local/share/delorean/fedora-master/projects.ini
     permissions: 0644    
@@ -131,11 +134,11 @@ write_files:
         [DEFAULT]
         datadir=/home/centos-master/delorean/data
         scriptsdir=/home/centos-master/delorean/scripts
-        baseurl=http://trunk.rdoproject.org/centos7
-        distro=f20-master
+        baseurl=http://209.132.178.14/centos7
+        distro=rpm-master
         source=master
         target=centos
-        smtpserver=
+        smtpserver=localhost
         reponame=delorean
     path: /usr/local/share/delorean/centos-master/projects.ini
     permissions: 0644
@@ -144,11 +147,11 @@ write_files:
         [DEFAULT]
         datadir=/home/centos-kilo/delorean/data
         scriptsdir=/home/centos-kilo/delorean/scripts
-        baseurl=http://trunk.rdoproject.org/kilo/centos7
-        distro=rpm-master
+        baseurl=http://209.132.178.14/centos7-kilo
+        distro=rpm-kilo
         source=master
         target=centos-kilo
-        smtpserver=
+        smtpserver=localhost
         reponame=delorean-kilo
     path: /usr/local/share/delorean/centos-kilo/projects.ini
     permissions: 0644
