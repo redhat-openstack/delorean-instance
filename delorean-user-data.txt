@@ -54,6 +54,7 @@ write_files:
         #!/bin/bash
         setenforce 0
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
+        sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
         # We will change the sshd port to 330 later
         semanage port -a -t ssh_port_t -p tcp 330
         systemctl enable docker.service
