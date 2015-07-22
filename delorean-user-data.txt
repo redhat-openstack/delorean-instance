@@ -213,7 +213,7 @@ write_files:
         chmod 755 /home/centos-kilo
         chmod 755 /home/rdoinfo
         yum -y install fail2ban fail2ban-systemd
-        printf '[sshd]\nenabled=true\n' > /etc/fail2ban/jail.d/01-sshd.conf
+        printf '[sshd]\nenabled=true\nport = 330\n' > /etc/fail2ban/jail.d/01-sshd.conf
         systemctl start firewalld
         systemctl enable fail2ban
         systemctl start fail2ban
