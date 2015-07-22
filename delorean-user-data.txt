@@ -55,8 +55,8 @@ write_files:
         setenforce 0
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
-        # We will change the sshd port to 330 later
-        semanage port -a -t ssh_port_t -p tcp 330
+        # We will change the sshd port to 3300 later
+        semanage port -a -t ssh_port_t -p tcp 3300
         systemctl enable docker.service
         systemctl start docker.service
         systemctl enable httpd.service
@@ -213,17 +213,17 @@ write_files:
         chmod 755 /home/centos-kilo
         chmod 755 /home/rdoinfo
         yum -y install fail2ban fail2ban-systemd
-        printf '[sshd]\nenabled=true\nport = 330\n' > /etc/fail2ban/jail.d/01-sshd.conf
+        printf '[sshd]\nenabled=true\nport = 3300\n' > /etc/fail2ban/jail.d/01-sshd.conf
         systemctl start firewalld
         systemctl enable fail2ban
         systemctl start fail2ban
         printf '# promoter can run promote script\npromoter ALL= NOPASSWD: /usr/local/bin/promote.sh\n' > /etc/sudoers.d/99-promoter
         firewall-cmd --add-port=80/tcp
         firewall-cmd --add-port=22/tcp
-        firewall-cmd --add-port=330/tcp
+        firewall-cmd --add-port=3300/tcp
         firewall-cmd --add-port=80/tcp --permanent
         firewall-cmd --add-port=22/tcp --permanent
-        firewall-cmd --add-port=330/tcp --permanent
+        firewall-cmd --add-port=3300/tcp --permanent
         # Starting firewalld after docker is running breaks its firewall rules
         systemctl restart docker
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
@@ -280,9 +280,10 @@ write_files:
     permissions: 0755
 
 bootcmd:
-#  - echo "" >> /etc/ssh/sshd_config
-#  - echo "Port 330" >> /etc/ssh/sshd_config
-#  - systemctl restart sshd
+  - echo "" >> /etc/ssh/sshd_config
+  - echo "Port 3300" >> /etc/ssh/sshd_config
+  - echo "Port 22" >> /etc/ssh/sshd_config
+  - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
   - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs ]
   - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
