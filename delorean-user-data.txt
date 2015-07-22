@@ -123,7 +123,7 @@ write_files:
         [DEFAULT]
         datadir=/home/fedora-master/delorean/data
         scriptsdir=/home/fedora-master/delorean/scripts
-        baseurl=http://209.132.178.14/f21
+        baseurl=http://trunk.rdoproject.org/f21
         distro=rpm-master
         source=master
         target=fedora
@@ -136,7 +136,7 @@ write_files:
         [DEFAULT]
         datadir=/home/centos-master/delorean/data
         scriptsdir=/home/centos-master/delorean/scripts
-        baseurl=http://209.132.178.14/centos7
+        baseurl=http://trunk.rdoproject.org/centos7
         distro=rpm-master
         source=master
         target=centos
@@ -149,7 +149,7 @@ write_files:
         [DEFAULT]
         datadir=/home/centos-kilo/delorean/data
         scriptsdir=/home/centos-kilo/delorean/scripts
-        baseurl=http://209.132.178.14/centos7-kilo
+        baseurl=http://trunk.rdoproject.org/centos7-kilo
         distro=rpm-kilo
         source=master
         target=centos-kilo
