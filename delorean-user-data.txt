@@ -286,13 +286,13 @@ bootcmd:
   - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
   - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs ]
-  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
-  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
+#  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
   - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
-  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
-  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
+#  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
+#  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
   - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
   - mount -a
 
