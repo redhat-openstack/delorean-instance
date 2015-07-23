@@ -55,8 +55,8 @@ write_files:
         setenforce 0
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
-        # We will change the sshd port to 330 later
-        semanage port -a -t ssh_port_t -p tcp 330
+        # We will change the sshd port to 3300 later
+        semanage port -a -t ssh_port_t -p tcp 3300
         systemctl enable docker.service
         systemctl start docker.service
         systemctl enable httpd.service
@@ -205,25 +205,25 @@ write_files:
         echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
         echo "7   * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
-        ln -s /home/fedora-master/delorean/data/repos /var/www/html/f21
-        ln -s /home/centos-master/delorean/data/repos /var/www/html/centos7
-        ln -s /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
+        ln -snf /home/fedora-master/delorean/data/repos /var/www/html/f21
+        ln -snf /home/centos-master/delorean/data/repos /var/www/html/centos7
+        ln -snf /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
         chmod 755 /home/fedora-master
         chmod 755 /home/centos-master
         chmod 755 /home/centos-kilo
         chmod 755 /home/rdoinfo
         yum -y install fail2ban fail2ban-systemd
-        printf '[sshd]\nenabled=true\nport = 330\n' > /etc/fail2ban/jail.d/01-sshd.conf
+        printf '[sshd]\nenabled=true\nport = 3300\n' > /etc/fail2ban/jail.d/01-sshd.conf
         systemctl start firewalld
         systemctl enable fail2ban
         systemctl start fail2ban
         printf '# promoter can run promote script\npromoter ALL= NOPASSWD: /usr/local/bin/promote.sh\n' > /etc/sudoers.d/99-promoter
         firewall-cmd --add-port=80/tcp
         firewall-cmd --add-port=22/tcp
-        firewall-cmd --add-port=330/tcp
+        firewall-cmd --add-port=3300/tcp
         firewall-cmd --add-port=80/tcp --permanent
         firewall-cmd --add-port=22/tcp --permanent
-        firewall-cmd --add-port=330/tcp --permanent
+        firewall-cmd --add-port=3300/tcp --permanent
         # Starting firewalld after docker is running breaks its firewall rules
         systemctl restart docker
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
@@ -280,18 +280,19 @@ write_files:
     permissions: 0755
 
 bootcmd:
-#  - echo "" >> /etc/ssh/sshd_config
-#  - echo "Port 330" >> /etc/ssh/sshd_config
-#  - systemctl restart sshd
+  - echo "" >> /etc/ssh/sshd_config
+  - echo "Port 3300" >> /etc/ssh/sshd_config
+  - echo "Port 22" >> /etc/ssh/sshd_config
+  - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
   - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs ]
-  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
-  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
+#  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
   - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
-  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
-  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
+#  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
+#  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
   - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
   - mount -a
 
