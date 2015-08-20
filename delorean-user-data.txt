@@ -301,6 +301,8 @@ write_files:
         sed -i 's/^#SSLCertificateChainFile.*/SSLCertificateChainFile\ \/etc\/pki\/tls\/certs\/DigiCertCA.crt/' /etc/httpd/conf.d/ssl.conf
 
         systemctl restart httpd
+        firewall-cmd --add-port=443/tcp
+        firewall-cmd --add-port=443/tcp --permanent
     path: /root/ssl_setup.sh
     permissions: 0700
 
