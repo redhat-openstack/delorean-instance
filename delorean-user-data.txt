@@ -49,12 +49,14 @@ packages:
   - git-review
   - logrotate
   - postfix
+  - yum-utils
 write_files:
   - content: |
         #!/bin/bash
         setenforce 0
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+        sed -i 's/^inet_interfaces.*/inet_interfaces = 127.0.0.1/' /etc/postfix/main.cf
         # We will change the sshd port to 3300 later
         semanage port -a -t ssh_port_t -p tcp 3300
         systemctl enable docker.service
@@ -308,6 +310,12 @@ write_files:
     path: /root/ssl_setup.sh
     permissions: 0700
 
+  - content: |
+        net.ipv6.conf.all.disable_ipv6 = 1
+        net.ipv6.conf.default.disable_ipv6 = 1
+    path: /etc/sysctl.d/00-disable-ipv6.conf
+    permissions: 0644
+
 bootcmd:
   - echo "" >> /etc/ssh/sshd_config
   - echo "Port 3300" >> /etc/ssh/sshd_config
@@ -324,8 +332,10 @@ bootcmd:
 #  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
   - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
   - mount -a
+  - yum-config-manager -c /etc/yum.conf --setopt="timeout=120" --save
 
 runcmd:
+  - sysctl -p /etc/sysctl.d/00-disable-ipv6.conf
   - script -c "/root/common-setup.sh" /var/log/delorean/common-setup.log
   - script -c "/tmp/delorean-setup.sh" /var/log/delorean/root-delorean-setup.log
   - script -c "/root/delorean-build-image.sh" /var/log/delorean/build-images.log
