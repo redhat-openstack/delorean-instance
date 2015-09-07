@@ -311,6 +311,22 @@ write_files:
     permissions: 0700
 
   - content: |
+        SSL support for Apache needs some manual steps. Please do the following:
+
+        1- Download the SSL certificate, public key and CA chain certificate,
+           and place it in the following locations
+
+           - /etc/pki/tls/certs/trunk_rdoproject_org.crt ,   root:root, permissions 600
+           - /etc/pki/tls/certs/DigiCertCA.crt ,             root:root, permissions 600
+           - /etc/pki/tls/private/trunk.rdoproject.org.key , root:root, permissions 600
+
+        2- Then, as root, execute /root/ssl_setup.sh
+
+    path: /root/README_SSL.txt
+    permissions: 0700
+
+
+  - content: |
         net.ipv6.conf.all.disable_ipv6 = 1
         net.ipv6.conf.default.disable_ipv6 = 1
     path: /etc/sysctl.d/00-disable-ipv6.conf
