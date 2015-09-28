@@ -15,7 +15,7 @@ Delorean infrastructure overview
 
 The Delorean infrastructure on an instance contains the following components:
 
-*TBD: add a diagram with the delorean components*
+![](delorean-components.jpg  "Delorean components")
 
 - A number of `workers`. A worker is basically a local user, with a local Deloran checkout from the GitHub repo, and some associated configuration:
   - `/usr/local/share/delorean/${USER}/projects.ini` with the Deloran instance configuration
@@ -46,7 +46,7 @@ If the primary instance fails, the following manual steps need to be taken to sw
 
 Once the primary instance is back, make sure you synchronize all data before switching DNS entries.
 
-*TBD: add a diagram with the synchronization concept*
+![](delorean-ha-concept.jpg  "Delorean HA concept")
 
 Deploying a Delorean instance
 -----------------------------
