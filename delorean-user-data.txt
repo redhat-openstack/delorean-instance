@@ -187,7 +187,7 @@ write_files:
         source=master
         target=centos-liberty
         smtpserver=localhost
-        reponame=delorean-liberty
+        reponame=delorean
     path: /usr/local/share/delorean/centos-liberty/projects.ini
     permissions: 0644
 
