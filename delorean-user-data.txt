@@ -319,7 +319,7 @@ write_files:
             exit 1
         fi
 
-        ln -svf */*/*${1}* current-passed-ci
+        ln -nsvf */*/*${1}* current-passed-ci
         echo "$1" >> promote.log
     path: /usr/local/bin/promote.sh
     permissions: 0755
