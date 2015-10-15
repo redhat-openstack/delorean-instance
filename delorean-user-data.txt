@@ -2,34 +2,34 @@
 disable_root: 0
 
 groups:
-  - docker: [root]
+  - mock: [root]
 
 users:
   - default
   - name: fedora-master 
     home: /home/fedora-master
     gecos: Fedora Master
-    groups: users,docker
+    groups: users,mock
     lock-passwd: true
   - name: centos-master
     home: /home/centos-master
     gecos: CentOS Master
-    groups: users,docker
+    groups: users,mock
     lock-passwd: true
   - name: centos-kilo
     home: /home/centos-kilo
     gecos: CentOS Kilo
-    groups: users,docker
+    groups: users,mock
     lock-passwd: true
   - name: centos-liberty
     home: /home/centos-liberty
     gecos: CentOS Liberty
-    groups: users,docker
+    groups: users,mock
     lock-passwd: true
   - name: rdoinfo
     home: /home/rdoinfo
     gecos: rdoinfo user
-    groups: users,docker
+    groups: users,mock
     lock-passwd: true
   - name: promoter
     home: /home/promoter
@@ -43,7 +43,8 @@ package_upgrade: true
 
 packages:
   - vim
-  - docker
+  - mock
+  - rpm-build
   - git
   - python-pip
   - git-remote-hg
@@ -67,13 +68,8 @@ write_files:
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
         sed -i 's/^inet_interfaces.*/inet_interfaces = 127.0.0.1/' /etc/postfix/main.cf
-        # workarounds to allow docker service to start within cloud-init
-        sed -i 's/^After.*//' /usr/lib/systemd/system/docker-storage-setup.service
-        echo "DefaultTimeoutStartSec=300s" >> /etc/systemd/system.conf
         # We will change the sshd port to 3300 later
         semanage port -a -t ssh_port_t -p tcp 3300
-        systemctl enable docker.service
-        systemctl start docker.service
         systemctl enable httpd.service
         systemctl start httpd.service
         systemctl enable postfix
@@ -213,30 +209,19 @@ write_files:
         pip install -r requirements.txt
         pip install -r test-requirements.txt
         python setup.py develop
-        chcon -t docker_exec_t scripts/*
+        if [[ "${USER}" = "centos-liberty" || "${USER}" = "centos-kilo" ]]
+        then
+            RELEASE=$(echo $USER|awk -F- '{print $2}')
+            sed "s#delorean-centos7-x86_64#delorean-centos7-${RELEASE}-x86_64#" ~/delorean/scripts/centos.cfg > ~/delorean/scripts/centos-${RELEASE}.cfg
+        fi
     path: /tmp/delorean-setup.sh
     permissions: 0755
 
   - content: |
-        cd ~/delorean
-        virtualenv .venv
-        source .venv/bin/activate
-        pip install -r requirements.txt
-        pip install -r test-requirements.txt
-        python setup.py develop
-        chcon -t docker_exec_t scripts/*
-        scripts/create_build_image.sh centos
-        docker tag delorean/centos:latest delorean/centos-kilo:latest
-        docker tag delorean/centos:latest delorean/centos-liberty:latest
-        scripts/create_build_image.sh fedora        
-    path: /root/delorean-build-image.sh
-    permissions: 0744
-
-  - content: |
-        echo "*/5 * * * * fedora-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-kilo    /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-liberty /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * fedora-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-kilo    /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-liberty /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "7   * * * * rdoinfo        /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
         ln -snf /home/fedora-master/data/repos /var/www/html/f22
         ln -snf /home/fedora-master/data/repos /var/www/html/f21
@@ -255,7 +240,7 @@ write_files:
         chmod 755 /home/centos-kilo
         chmod 755 /home/centos-liberty
         chmod 755 /home/rdoinfo
-        yum -y install fail2ban fail2ban-systemd
+        dnf -y install fail2ban fail2ban-systemd
         printf '[sshd]\nenabled=true\nport = 3300\n' > /etc/fail2ban/jail.d/01-sshd.conf
         systemctl start firewalld
         systemctl enable fail2ban
@@ -267,8 +252,6 @@ write_files:
         firewall-cmd --add-port=80/tcp --permanent
         firewall-cmd --add-port=22/tcp --permanent
         firewall-cmd --add-port=3300/tcp --permanent
-        # Starting firewalld after docker is running breaks its firewall rules
-        systemctl restart docker
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
         echo "Remember to complete lsyncd configuration"
         echo "Remember to setup SSL support for httpd, if needed"
@@ -340,7 +323,7 @@ write_files:
 
         read dummy
 
-        yum install mod_ssl
+        dnf install mod_ssl
         sed -i 's/^SSLCertificateFile.*/SSLCertificateFile\ \/etc\/pki\/tls\/certs\/trunk_rdoproject_org.crt/' /etc/httpd/conf.d/ssl.conf
         sed -i 's/^SSLCertificateKeyFile.*/SSLCertificateKeyFile\ \/etc\/pki\/tls\/private\/trunk.rdoproject.org.key/' /etc/httpd/conf.d/ssl.conf
         sed -i 's/^#SSLCertificateChainFile.*/SSLCertificateChainFile\ \/etc\/pki\/tls\/certs\/DigiCertCA.crt/' /etc/httpd/conf.d/ssl.conf
@@ -492,14 +475,14 @@ bootcmd:
   - grep "^Port 22" /etc/ssh/sshd_config || echo "Port 22" >> /etc/ssh/sshd_config
 #  - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
-  - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs, yum-utils ]
-#  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
-#  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
-#  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
-#  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
+  - [ cloud-init-per, once, cmd2, dnf, -y, install, lvm2, xfsprogs, yum-utils ]
+  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
+  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
+  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
+  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
   - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
-#  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
-#  - [ cloud-init-per, once, cmd9, mkfs.ext4, -F, /dev/vgdelorean/lvol1 ]
+  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
+  - [ cloud-init-per, once, cmd9, mkfs.ext4, -F, /dev/vgdelorean/lvol1 ]
   - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home ext4 defaults 1 1" >> /etc/fstab
   - mount -a
   - yum-config-manager -c /etc/yum.conf --setopt="timeout=120" --save
@@ -510,7 +493,6 @@ runcmd:
   - sysctl -p /etc/sysctl.d/01-lsyncd-inotify.conf
   - script -c "/root/common-setup.sh" /var/log/delorean/common-setup.log
   - script -c "/tmp/delorean-setup.sh" /var/log/delorean/root-delorean-setup.log
-  - script -c "/root/delorean-build-image.sh" /var/log/delorean/build-images.log
   - sudo -u fedora-master /tmp/delorean-setup.sh
   - sudo -u centos-master /tmp/delorean-setup.sh
   - sudo -u centos-kilo /tmp/delorean-setup.sh
