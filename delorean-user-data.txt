@@ -184,7 +184,7 @@ write_files:
         scriptsdir=/home/centos-liberty/delorean/scripts
         baseurl=http://trunk.rdoproject.org/centos7-liberty
         distro=rpm-liberty
-        source=master
+        source=stable/liberty
         target=centos-liberty
         smtpserver=localhost
         reponame=delorean
