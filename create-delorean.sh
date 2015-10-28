@@ -25,17 +25,17 @@ else
     echo "Reusing existing volume ${VOLUME_NAME}"
 fi
 
-nova boot --flavor m1.medium --image ${IMAGE_ID} --security-groups ${SECGROUP_NAME} --key-name ${KEY_NAME} --user-data delorean-user-data.txt ${INSTANCE_NAME}
+openstack server create --flavor m1.medium --image ${IMAGE_ID} --security-group ${SECGROUP_NAME} --key-name ${KEY_NAME} --user-data delorean-user-data.txt ${INSTANCE_NAME}
 sleep 30
 if cinder show ${CINDER_ID}|grep -q 'in-use'; then
     echo "WARN: volume ${VOLUME_NAME} is in use and was not attached to ${INSTANCE_NAME}"
 else
-    nova volume-attach ${INSTANCE_NAME} ${CINDER_ID} /dev/vdb
+    openstack server add volume --device /dev/vdb ${INSTANCE_NAME} ${CINDER_ID}
 fi
 
-SERVER_ID=$(nova floating-ip-list | grep $FLOATING_IP | awk '{print $6}')
-if [ ${SERVER_ID} = '-' ]; then
-    nova floating-ip-associate ${INSTANCE_NAME} ${FLOATING_ID}
+SERVER_ID=$(openstack ip floating list | grep ${FLOATING_IP} |awk '{print $10}')
+if [ ${SERVER_ID} = 'None' ]; then
+    openstack ip floating add ${FLOATING_IP} ${INSTANCE_NAME}
 else
     echo "WARN: floating ${VOLUME_NAME} is in use by ${SERVER_ID} and was not associated with ${INSTANCE_NAME}"
 fi

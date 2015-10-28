@@ -1,7 +1,9 @@
 #cloud-config
 disable_root: 0
+
 groups:
   - docker: [root]
+
 users:
   - default
   - name: fedora-master 
@@ -19,6 +21,11 @@ users:
     gecos: CentOS Kilo
     groups: users,docker
     lock-passwd: true
+  - name: centos-liberty
+    home: /home/centos-liberty
+    gecos: CentOS Liberty
+    groups: users,docker
+    lock-passwd: true
   - name: rdoinfo
     home: /home/rdoinfo
     gecos: rdoinfo user
@@ -31,14 +38,15 @@ users:
     lock-passwd: true
     ssh-authorized-keys:
       - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAuT/KZPHtObx4d1GzI7OTG8sFEgyKJsiYl2PRhOL0ugknac8Cv2KHNTN0MgAI3AVCpJaZ+j4bcFWkLCfkj6zmsl0/j3IGn2qCL7YuBeZ5tbvVH1mr0upzwRu8IQSbcHEzSeuPgVpYwUVf/hp4fD7eGlW2vm1ONOljvFDe1DTAL74C0qj6xiu+G1+PSA+RHUhFayIg34TVSnfkUHi+Lq23rR+0CAIzaEI2ClqVVEySktmnP0Y/ZGGXtX0qCrMZd10jAHNWLQ8lTM92nlqamy5eWhMEnU4nnK09iyYtRB+HzcmSU7QZCC1raMbtGgqPsP+IxLJnnpZavNcK39s6uvfKOQ==
+
 package_upgrade: true
+
 packages:
   - vim
-  - docker-io
+  - docker
   - git
   - python-pip
   - git-remote-hg
-  - git-hg
   - python-virtualenv
   - httpd
   - gcc
@@ -49,12 +57,19 @@ packages:
   - git-review
   - logrotate
   - postfix
+  - yum-utils
+  - lsyncd 
+
 write_files:
   - content: |
         #!/bin/bash
         setenforce 0
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/sysconfig/selinux
         sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+        sed -i 's/^inet_interfaces.*/inet_interfaces = 127.0.0.1/' /etc/postfix/main.cf
+        # workarounds to allow docker service to start within cloud-init
+        sed -i 's/^After.*//' /usr/lib/systemd/system/docker-storage-setup.service
+        echo "DefaultTimeoutStartSec=300s" >> /etc/systemd/system.conf
         # We will change the sshd port to 3300 later
         semanage port -a -t ssh_port_t -p tcp 3300
         systemctl enable docker.service
@@ -64,6 +79,11 @@ write_files:
         systemctl enable postfix
         systemctl start postfix
         echo "DNS1=8.8.8.8"  >> /etc/sysconfig/network-scripts/ifcfg-eth0
+        service network restart
+        chown -R centos-master:centos-master   /home/centos-master
+        chown -R centos-liberty:centos-liberty /home/centos-liberty
+        chown -R centos-kilo:centos-kilo       /home/centos-kilo
+        chown -R fedora-master:fedora-master   /home/fedora-master
     path: /root/common-setup.sh
     permissions: 0744
 
@@ -80,7 +100,7 @@ write_files:
             mkdir -p /home/${USER}/delorean-logs
         fi
 
-        source ~/delorean/.venv/bin/activate
+        source ~/.venv/bin/activate
         LOGFILE=/home/${USER}/delorean-logs/delorean-run.$(date +%s).log
         cd ~/delorean
 
@@ -109,7 +129,7 @@ write_files:
         fi
         echo 'RDOINFO_REPO="git://github.com/apevec/rdoinfo-Kilo.git"' > ~/.rdopkg/conf.d/kiloRC.py
 
-        source ~/delorean/.venv/bin/activate
+        source ~/.venv/bin/activate
         LOGFILE=/home/${USER}/delorean-logs/delorean-run.$(date +%s).log
         cd ~/delorean
 
@@ -121,9 +141,9 @@ write_files:
 
   - content: |
         [DEFAULT]
-        datadir=/home/fedora-master/delorean/data
+        datadir=/home/fedora-master/data
         scriptsdir=/home/fedora-master/delorean/scripts
-        baseurl=http://trunk.rdoproject.org/f21
+        baseurl=http://trunk.rdoproject.org/f22
         distro=rpm-master
         source=master
         target=fedora
@@ -134,7 +154,7 @@ write_files:
 
   - content: |
         [DEFAULT]
-        datadir=/home/centos-master/delorean/data
+        datadir=/home/centos-master/data
         scriptsdir=/home/centos-master/delorean/scripts
         baseurl=http://trunk.rdoproject.org/centos7
         distro=rpm-master
@@ -147,7 +167,7 @@ write_files:
 
   - content: |
         [DEFAULT]
-        datadir=/home/centos-kilo/delorean/data
+        datadir=/home/centos-kilo/data
         scriptsdir=/home/centos-kilo/delorean/scripts
         baseurl=http://trunk.rdoproject.org/centos7-kilo
         distro=rpm-kilo
@@ -156,6 +176,19 @@ write_files:
         smtpserver=localhost
         reponame=delorean-kilo
     path: /usr/local/share/delorean/centos-kilo/projects.ini
+    permissions: 0644
+
+  - content: |
+        [DEFAULT]
+        datadir=/home/centos-liberty/data
+        scriptsdir=/home/centos-liberty/delorean/scripts
+        baseurl=http://trunk.rdoproject.org/centos7-liberty
+        distro=rpm-liberty
+        source=stable/liberty
+        target=centos-liberty
+        smtpserver=localhost
+        reponame=delorean
+    path: /usr/local/share/delorean/centos-liberty/projects.ini
     permissions: 0644
 
   - content: |
@@ -175,8 +208,8 @@ write_files:
         ssh-keygen -t rsa -P "" -f ~/.ssh/id_rsa
         git clone https://github.com/openstack-packages/delorean
         cd ~/delorean
-        virtualenv .venv
-        source .venv/bin/activate
+        virtualenv ../.venv
+        source ../.venv/bin/activate
         pip install -r requirements.txt
         pip install -r test-requirements.txt
         python setup.py develop
@@ -192,25 +225,35 @@ write_files:
         pip install -r test-requirements.txt
         python setup.py develop
         chcon -t docker_exec_t scripts/*
-        mkdir scripts/dockerfiles/centos-kilo
-        cp -p scripts/dockerfiles/centos/Dockerfile scripts/dockerfiles/centos-kilo
         scripts/create_build_image.sh centos
-        scripts/create_build_image.sh centos-kilo
+        docker tag delorean/centos:latest delorean/centos-kilo:latest
+        docker tag delorean/centos:latest delorean/centos-liberty:latest
         scripts/create_build_image.sh fedora        
     path: /root/delorean-build-image.sh
     permissions: 0744
 
   - content: |
-        echo "*/5 * * * * fedora-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-master /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-kilo   /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
-        echo "7   * * * * rdoinfo       /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
-        ln -snf /home/fedora-master/delorean/data/repos /var/www/html/f21
-        ln -snf /home/centos-master/delorean/data/repos /var/www/html/centos7
-        ln -snf /home/centos-kilo/delorean/data/repos /var/www/html/centos7-kilo
+        echo "*/5 * * * * fedora-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-kilo    /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-liberty /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "7   * * * * rdoinfo        /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
+        ln -snf /home/fedora-master/data/repos /var/www/html/f22
+        ln -snf /home/fedora-master/data/repos /var/www/html/f21
+        ln -snf /home/fedora-master/data/repos /var/www/html/fedora22
+        ln -snf /home/fedora-master/data/repos /var/www/html/fedora21
+        ln -snf /home/centos-master/data/repos /var/www/html/centos7
+        ln -snf /home/centos-master/data/repos /var/www/html/centos70
+        ln -snf /home/centos-kilo/data/repos /var/www/html/centos7-kilo
+        ln -snf /home/centos-liberty/data/repos /var/www/html/centos7-liberty
+        mkdir /var/www/html/kilo
+        mkdir /var/www/html/liberty
+        ln -snf /home/centos-kilo/data/repos /var/www/html/kilo/centos7
+        ln -snf /home/centos-liberty/data/repos /var/www/html/liberty/centos7
         chmod 755 /home/fedora-master
         chmod 755 /home/centos-master
         chmod 755 /home/centos-kilo
+        chmod 755 /home/centos-liberty
         chmod 755 /home/rdoinfo
         yum -y install fail2ban fail2ban-systemd
         printf '[sshd]\nenabled=true\nport = 3300\n' > /etc/fail2ban/jail.d/01-sshd.conf
@@ -227,6 +270,8 @@ write_files:
         # Starting firewalld after docker is running breaks its firewall rules
         systemctl restart docker
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
+        echo "Remember to complete lsyncd configuration"
+        echo "Remember to setup SSL support for httpd, if needed"
     path: /root/post-setup.sh
     permissions: 0744
 
@@ -244,7 +289,7 @@ write_files:
     permissions: 0755
 
   - content: |
-        /home/fedora-master/delorean-logs/*.log /home/centos-master/delorean-logs/*.log /home/centos-kilo/delorean-logs/*.log {
+        /home/fedora-master/delorean-logs/*.log /home/centos-master/delorean-logs/*.log /home/centos-kilo/delorean-logs/*.log /home/centos-liberty/delorean-logs/*.log{
             daily
             compress
             rotate 0
@@ -265,7 +310,7 @@ write_files:
             exit 1
         fi
 
-        cd /home/${2}/delorean/data/repos
+        cd /home/${2}/data/repos
 
         # verify uniqueness
         a="$(find . -maxdepth 3 -mindepth 3 -type d -name \*${1}\* | wc -l)"
@@ -274,36 +319,204 @@ write_files:
             exit 1
         fi
 
-        ln -svf */*/*${1}* current-passed-ci
+        ln -nsvf */*/*${1}* current-passed-ci
         echo "$1" >> promote.log
     path: /usr/local/bin/promote.sh
     permissions: 0755
 
+  - content: |
+        #!/bin/bash
+
+        echo
+        echo "Before continuing, make sure the following files are in place and with"
+        echo "the right permissions:"
+        echo
+        echo "- /etc/pki/tls/certs/trunk_rdoproject_org.crt ,   root:root, permissions 600"
+        echo "- /etc/pki/tls/certs/DigiCertCA.crt ,             root:root, permissions 600"
+        echo "- /etc/pki/tls/private/trunk.rdoproject.org.key , root:root, permissions 600"
+        echo
+        echo "If this is correct, press ENTER to continue. Otherwise, Ctrl+C to abort"
+        echo
+
+        read dummy
+
+        yum install mod_ssl
+        sed -i 's/^SSLCertificateFile.*/SSLCertificateFile\ \/etc\/pki\/tls\/certs\/trunk_rdoproject_org.crt/' /etc/httpd/conf.d/ssl.conf
+        sed -i 's/^SSLCertificateKeyFile.*/SSLCertificateKeyFile\ \/etc\/pki\/tls\/private\/trunk.rdoproject.org.key/' /etc/httpd/conf.d/ssl.conf
+        sed -i 's/^#SSLCertificateChainFile.*/SSLCertificateChainFile\ \/etc\/pki\/tls\/certs\/DigiCertCA.crt/' /etc/httpd/conf.d/ssl.conf
+        sed -i 's/^#SSLHonorCipherOrder.*/SSLHonorCipherOrder on/' /etc/httpd/conf.d/ssl.conf
+        sed -i 's/^SSLProtocol.*/SSLProtocol all -SSLv2 -SSLv3/' /etc/httpd/conf.d/ssl.conf
+
+        systemctl restart httpd
+        firewall-cmd --add-port=443/tcp
+        firewall-cmd --add-port=443/tcp --permanent
+    path: /root/ssl_setup.sh
+    permissions: 0700
+
+  - content: |
+        SSL support for Apache needs some manual steps. Please do the following:
+
+        1- Download the SSL certificate, public key and CA chain certificate,
+           and place it in the following locations
+
+           - /etc/pki/tls/certs/trunk_rdoproject_org.crt ,   root:root, permissions 600
+           - /etc/pki/tls/certs/DigiCertCA.crt ,             root:root, permissions 600
+           - /etc/pki/tls/private/trunk.rdoproject.org.key , root:root, permissions 600
+
+        2- Then, as root, execute /root/ssl_setup.sh
+
+    path: /root/README_SSL.txt
+    permissions: 0700
+
+  - content: |
+        net.ipv6.conf.all.disable_ipv6 = 1
+        net.ipv6.conf.default.disable_ipv6 = 1
+    path: /etc/sysctl.d/00-disable-ipv6.conf
+    permissions: 0644
+
+  - content: |
+        fs.inotify.max_user_watches = 1048576
+    path: /etc/sysctl.d/01-lsyncd-inotify.conf
+    permissions: 0644
+
+  - content: |
+        [delorean-liberty-testing]
+        name=delorean-liberty-testing
+        baseurl=http://cbs.centos.org/repos/cloud7-openstack-liberty-testing/$basearch/os/
+        enabled=1
+        gpgcheck=0
+        priority=2
+
+        [delorean-common-testing]
+        name=delorean-common-testing
+        baseurl=http://cbs.centos.org/repos/cloud7-openstack-common-testing/$basearch/os/
+        enabled=1
+        gpgcheck=0
+        priority=2
+    path: /home/centos-master/data/repos/delorean-deps.repo
+    permissions: 0644
+
+  - content: |
+        [delorean-liberty-testing]
+        name=delorean-liberty-testing
+        baseurl=https://copr-be.cloud.fedoraproject.org/results/apevec/RDO-Liberty/fedora-22-$basearch/
+        enabled=1
+        gpgcheck=0
+        priority=2
+
+        [openstack-kilo]
+        name=openstack-kilo
+        baseurl=http://repos.fedorapeople.org/repos/openstack/openstack-kilo/f22/
+        enabled=1
+        gpgcheck=0
+    path: /home/fedora-master/data/repos/delorean-deps.repo
+    permissions: 0644
+
+  - content: |
+        [openstack-kilo]
+        name=openstack-kilo
+        baseurl=http://repos.fedorapeople.org/repos/openstack/openstack-kilo/el7/
+        enabled=1
+        gpgcheck=0
+    path: /home/centos-kilo/data/repos/delorean-deps.repo
+    permissions: 0644
+
+  - content: |
+        [delorean-liberty-testing]
+        name=delorean-liberty-testing
+        baseurl=http://cbs.centos.org/repos/cloud7-openstack-liberty-testing/$basearch/os/
+        enabled=1
+        gpgcheck=0
+        priority=2
+
+        [delorean-common-testing]
+        name=delorean-common-testing
+        baseurl=http://cbs.centos.org/repos/cloud7-openstack-common-testing/$basearch/os/
+        enabled=1
+        gpgcheck=0
+        priority=2
+    path: /home/centos-liberty/data/repos/delorean-deps.repo
+    permissions: 0644
+
+  - content: |
+        sync {
+            default.rsync,
+            source="/home/centos-kilo",
+            target="backupserver.example.com:/home/centos-kilo",
+            rsync = {
+                    archive = true,
+                    compress = true,
+                    acls = true,
+                    verbose = true,
+                    rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
+            }
+        sync {
+            default.rsync,
+            source="/home/centos-liberty",
+            target="backupserver.example.com:/home/centos-liberty",
+            rsync = {
+                    archive = true,
+                    compress = true,
+                    acls = true,
+                    verbose = true,
+                    rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
+            }
+        sync {
+            default.rsync,
+            source="/home/centos-master",
+            target="backupserver.example.com:/home/centos-master",
+            rsync = {
+                    archive = true,
+                    compress = true,
+                    acls = true,
+                    verbose = true,
+                    rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
+            }
+        sync {
+            default.rsync,
+            source="/home/fedora-master",
+            target="backupserver.example.com:/home/fedora-master",
+            rsync = {
+                    archive = true,
+                    compress = true,
+                    acls = true,
+                    verbose = true,
+                    rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
+            }
+    path: /etc/lsyncd.conf
+    permissions: 0644
+
 bootcmd:
-  - echo "" >> /etc/ssh/sshd_config
-  - echo "Port 3300" >> /etc/ssh/sshd_config
-  - echo "Port 22" >> /etc/ssh/sshd_config
-  - systemctl restart sshd
+  - setenforce 0
+  - grep "^Port 3300" /etc/ssh/sshd_config || echo "Port 3300" >> /etc/ssh/sshd_config
+  - grep "^Port 22" /etc/ssh/sshd_config || echo "Port 22" >> /etc/ssh/sshd_config
+#  - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
-  - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs ]
+  - [ cloud-init-per, once, cmd2, yum, -y, install, lvm2, xfsprogs, yum-utils ]
 #  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
 #  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
 #  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
 #  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
   - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
 #  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
-#  - [ cloud-init-per, once, cmd9, mkfs.xfs, -f, /dev/vgdelorean/lvol1 ]
-  - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home xfs defaults 1 1" >> /etc/fstab
+#  - [ cloud-init-per, once, cmd9, mkfs.ext4, -F, /dev/vgdelorean/lvol1 ]
+  - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home ext4 defaults 1 1" >> /etc/fstab
   - mount -a
+  - yum-config-manager -c /etc/yum.conf --setopt="timeout=120" --save
+
 
 runcmd:
+  - sysctl -p /etc/sysctl.d/00-disable-ipv6.conf
+  - sysctl -p /etc/sysctl.d/01-lsyncd-inotify.conf
   - script -c "/root/common-setup.sh" /var/log/delorean/common-setup.log
   - script -c "/tmp/delorean-setup.sh" /var/log/delorean/root-delorean-setup.log
   - script -c "/root/delorean-build-image.sh" /var/log/delorean/build-images.log
   - sudo -u fedora-master /tmp/delorean-setup.sh
   - sudo -u centos-master /tmp/delorean-setup.sh
   - sudo -u centos-kilo /tmp/delorean-setup.sh
+  - sudo -u centos-liberty /tmp/delorean-setup.sh
   - sudo -u rdoinfo /tmp/rdoinfo-setup.sh
   - script -c "/root/post-setup.sh" /var/log/delorean/post-setup.log
 
 final_message: "Delorean installed, after $UPTIME seconds."
+
