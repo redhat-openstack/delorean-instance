@@ -11,6 +11,11 @@ users:
     gecos: Fedora Master
     groups: users,mock
     lock-passwd: true
+  - name: fedora-rawhide-master 
+    home: /home/fedora-rawhide-master
+    gecos: Fedora Master
+    groups: users,mock
+    lock-passwd: true
   - name: centos-master
     home: /home/centos-master
     gecos: CentOS Master
@@ -80,6 +85,7 @@ write_files:
         chown -R centos-liberty:centos-liberty /home/centos-liberty
         chown -R centos-kilo:centos-kilo       /home/centos-kilo
         chown -R fedora-master:fedora-master   /home/fedora-master
+        chown -R fedora-rawhide-master:fedora-rawhide-master   /home/fedora-rawhide-master
     path: /root/common-setup.sh
     permissions: 0744
 
@@ -150,6 +156,19 @@ write_files:
 
   - content: |
         [DEFAULT]
+        datadir=/home/fedora-rawhide-master/data
+        scriptsdir=/home/fedora-rawhide-master/delorean/scripts
+        baseurl=http://trunk.rdoproject.org/f24
+        distro=rpm-master
+        source=master
+        target=fedora-rawhide
+        smtpserver=localhost
+        reponame=delorean
+    path: /usr/local/share/delorean/fedora-rawhide-master/projects.ini
+    permissions: 0644
+
+  - content: |
+        [DEFAULT]
         datadir=/home/centos-master/data
         scriptsdir=/home/centos-master/delorean/scripts
         baseurl=http://trunk.rdoproject.org/centos7
@@ -214,15 +233,57 @@ write_files:
             RELEASE=$(echo $USER|awk -F- '{print $2}')
             sed "s#delorean-centos7-x86_64#delorean-centos7-${RELEASE}-x86_64#" ~/delorean/scripts/centos.cfg > ~/delorean/scripts/centos-${RELEASE}.cfg
         fi
+        if [[ "${USER}" = "fedora-rawhide-master" ]]
+        then
+            RELEASE="fedora-rawhide"
+            cat > ~/delorean/scripts/fedora-rawhide.cfg << EOF
+        config_opts['root'] = 'delorean-fedora-rawhide-x86_64'
+        config_opts['target_arch'] = 'x86_64'
+        config_opts['legal_host_arches'] = ('x86_64',)
+        config_opts['chroot_setup_cmd'] = 'install basesystem rpm-build python2-devel gcc make python-sqlalchemy python-webob ghostscript graphviz python-sphinx python-eventlet python-six python-pbr python3-pbr git'
+        config_opts['dist'] = 'rawhide'  # only useful for --resultdir variable subst
+        config_opts['extra_chroot_dirs'] = [ '/run/lock', ]
+        config_opts['releasever'] = '24'
+
+        config_opts['package_manager'] = 'dnf'
+
+        config_opts['yum.conf'] = """
+        [main]
+        keepcache=1
+        debuglevel=2
+        reposdir=/dev/null
+        logfile=/var/log/yum.log
+        retries=20
+        obsoletes=1
+        gpgcheck=0
+        assumeyes=1
+        syslog_ident=mock
+        syslog_device=
+        install_weak_deps=0
+        metadata_expire=0
+        # repos
+
+        [fedora]
+        name=fedora
+        metalink=https://mirrors.fedoraproject.org/metalink?repo=rawhide&arch=\$basearch
+        failovermethod=priority
+        """
+        EOF
+
+        fi
+
     path: /tmp/delorean-setup.sh
     permissions: 0755
 
   - content: |
-        echo "#*/5 * * * * fedora-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "#*/5 * * * * centos-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "#*/5 * * * * centos-kilo    /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
-        echo "#*/5 * * * * centos-liberty /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "7   * * * * rdoinfo        /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
+        echo "*/5 * * * * fedora-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * fedora-rawhide-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-kilo            /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
+        echo "*/5 * * * * centos-liberty         /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "7   * * * * rdoinfo                 /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
+        ln -snf /home/fedora-rawhide-master/data/repos /var/www/html/f24
+        ln -snf /home/fedora-rawhide-master/data/repos /var/www/html/fedora24
         ln -snf /home/fedora-master/data/repos /var/www/html/f22
         ln -snf /home/fedora-master/data/repos /var/www/html/f21
         ln -snf /home/fedora-master/data/repos /var/www/html/fedora22
@@ -235,6 +296,7 @@ write_files:
         mkdir /var/www/html/liberty
         ln -snf /home/centos-kilo/data/repos /var/www/html/kilo/centos7
         ln -snf /home/centos-liberty/data/repos /var/www/html/liberty/centos7
+        chmod 755 /home/fedora-rawhide-master        
         chmod 755 /home/fedora-master
         chmod 755 /home/centos-master
         chmod 755 /home/centos-kilo
@@ -252,6 +314,13 @@ write_files:
         firewall-cmd --add-port=80/tcp --permanent
         firewall-cmd --add-port=22/tcp --permanent
         firewall-cmd --add-port=3300/tcp --permanent
+        # Fetch trunk.rdo landing page
+        cd /var/www/html/
+        mkdir images
+        cd images
+        curl -O https://raw.githubusercontent.com/redhat-openstack/trunk.rdoproject.org/master/images/rdo-logo-white.png
+        cd ..
+        curl -O https://raw.githubusercontent.com/redhat-openstack/trunk.rdoproject.org/master/index.html
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
         echo "Remember to complete lsyncd configuration"
         echo "Remember to setup SSL support for httpd, if needed"
@@ -272,7 +341,7 @@ write_files:
     permissions: 0755
 
   - content: |
-        /home/fedora-master/delorean-logs/*.log /home/centos-master/delorean-logs/*.log /home/centos-kilo/delorean-logs/*.log /home/centos-liberty/delorean-logs/*.log{
+        /home/fedora-master/delorean-logs/*.log /home/fedora-rawhide-master/delorean-logs/*.log /home/centos-master/delorean-logs/*.log /home/centos-kilo/delorean-logs/*.log /home/centos-liberty/delorean-logs/*.log{
             daily
             compress
             rotate 0
@@ -396,6 +465,22 @@ write_files:
     permissions: 0644
 
   - content: |
+        [delorean-liberty-testing]
+        name=delorean-liberty-testing
+        baseurl=https://copr-be.cloud.fedoraproject.org/results/apevec/RDO-Liberty/fedora-22-$basearch/
+        enabled=1
+        gpgcheck=0
+        priority=2
+
+        [openstack-kilo]
+        name=openstack-kilo
+        baseurl=http://repos.fedorapeople.org/repos/openstack/openstack-kilo/f22/
+        enabled=1
+        gpgcheck=0
+    path: /home/fedora-rawhide-master/data/repos/delorean-deps.repo
+    permissions: 0644
+
+  - content: |
         [openstack-kilo]
         name=openstack-kilo
         baseurl=http://repos.fedorapeople.org/repos/openstack/openstack-kilo/el7/
@@ -466,6 +551,17 @@ write_files:
                     verbose = true,
                     rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
             }
+        sync {
+            default.rsync,
+            source="/home/fedora-rawhide-master",
+            target="backupserver.example.com:/home/fedora-rawhide-master",
+            rsync = {
+                    archive = true,
+                    compress = true,
+                    acls = true,
+                    verbose = true,
+                    rsh = "/usr/bin/ssh -p 3300 -o StrictHostKeyChecking=no" }
+            }
     path: /etc/lsyncd.conf
     permissions: 0644
 
@@ -476,13 +572,13 @@ bootcmd:
 #  - systemctl restart sshd
   - [ cloud-init-per, once, cmd1, mkdir, /var/log/delorean ]
   - [ cloud-init-per, once, cmd2, dnf, -y, install, lvm2, xfsprogs, yum-utils ]
-  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
-  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
-  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd3, vgremove, -f, delorean ]
+#  - [ cloud-init-per, once, cmd4, pvremove, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd5, pvcreate, -f, /dev/vdb ]
+#  - [ cloud-init-per, once, cmd6, vgcreate, vgdelorean, /dev/vdb ]
   - [ cloud-init-per, once, cmd7, vgchange, -a, y, vgdelorean ]
-  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
-  - [ cloud-init-per, once, cmd9, mkfs.ext4, -F, /dev/vgdelorean/lvol1 ]
+#  - [ cloud-init-per, once, cmd8, lvcreate, -l, 100%FREE, -n, lvol1, vgdelorean ]
+#  - [ cloud-init-per, once, cmd9, mkfs.ext4, -F, /dev/vgdelorean/lvol1 ]
   - grep delorean /etc/fstab || echo "/dev/vgdelorean/lvol1 /home ext4 defaults 1 1" >> /etc/fstab
   - mount -a
   - yum-config-manager -c /etc/yum.conf --setopt="timeout=120" --save
@@ -494,6 +590,7 @@ runcmd:
   - script -c "/root/common-setup.sh" /var/log/delorean/common-setup.log
   - script -c "/tmp/delorean-setup.sh" /var/log/delorean/root-delorean-setup.log
   - sudo -u fedora-master /tmp/delorean-setup.sh
+  - sudo -u fedora-rawhide-master /tmp/delorean-setup.sh
   - sudo -u centos-master /tmp/delorean-setup.sh
   - sudo -u centos-kilo /tmp/delorean-setup.sh
   - sudo -u centos-liberty /tmp/delorean-setup.sh
