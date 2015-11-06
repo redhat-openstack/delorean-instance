@@ -85,4 +85,5 @@ Not everything can be deployed automatically. Currently, there are some steps th
 1. sh.py needs to be patched on all venvs, according to the information provided in https://github.com/amoffat/sh/pull/237
 2. To use https, you will need a properly singed SSL certificate. File `/root/README_SSL.txt` contains the information on which files need to be placed in the file system, and how to run the script that will configure it.
 3. The `lsyncd` daemon configuration file, `/etc/lsyncd.conf` needs to be modified to include the IP address of the secondary system. Once that is done, start the `lsyncd` service. Please *do not* enable the service to run on startup. If you do so, during a failover scenario it can overwrite anything in the currently working Delorean instance.
-4. Remove port 22 from the security group, if you want to reduce the number of automated brute-force attacks against `sshd`.
+4. The crontab entries for the workers are commented out by default. Uncomment them to begin processing packages.
+5. Remove port 22 from the security group, if you want to reduce the number of automated brute-force attacks against `sshd`.
