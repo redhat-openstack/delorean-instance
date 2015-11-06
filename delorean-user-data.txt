@@ -276,11 +276,11 @@ write_files:
     permissions: 0755
 
   - content: |
-        echo "*/5 * * * * fedora-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * fedora-rawhide-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-kilo            /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
-        echo "*/5 * * * * centos-liberty         /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * fedora-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * fedora-rawhide-master  /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-master          /usr/local/bin/run-delorean.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-kilo            /usr/local/bin/run-delorean-kilo.sh" >> /etc/crontab
+        echo "#*/5 * * * * centos-liberty         /usr/local/bin/run-delorean.sh" >> /etc/crontab
         echo "7   * * * * rdoinfo                 /usr/local/bin/rdoinfo-update.sh" >> /etc/crontab
         ln -snf /home/fedora-rawhide-master/data/repos /var/www/html/f24
         ln -snf /home/fedora-rawhide-master/data/repos /var/www/html/fedora24
@@ -324,6 +324,7 @@ write_files:
         echo "Remember to patch sh.py on all venvs according to https://github.com/amoffat/sh/pull/237"
         echo "Remember to complete lsyncd configuration"
         echo "Remember to setup SSL support for httpd, if needed"
+        echo "Once the post-setup actions are completed, uncomment the worker entries in /etc/crontab"
     path: /root/post-setup.sh
     permissions: 0744
 
@@ -467,16 +468,10 @@ write_files:
   - content: |
         [delorean-liberty-testing]
         name=delorean-liberty-testing
-        baseurl=https://copr-be.cloud.fedoraproject.org/results/apevec/RDO-Liberty/fedora-22-$basearch/
+        baseurl=https://copr-be.cloud.fedoraproject.org/results/apevec/RDO-Liberty/fedora-rawhide-$basearch/
         enabled=1
         gpgcheck=0
         priority=2
-
-        [openstack-kilo]
-        name=openstack-kilo
-        baseurl=http://repos.fedorapeople.org/repos/openstack/openstack-kilo/f22/
-        enabled=1
-        gpgcheck=0
     path: /home/fedora-rawhide-master/data/repos/delorean-deps.repo
     permissions: 0644
 
