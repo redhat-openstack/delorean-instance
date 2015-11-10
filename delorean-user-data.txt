@@ -335,6 +335,15 @@ write_files:
     permissions: 0755
 
   - content: |
+        centos-liberty ALL=(ALL) NOPASSWD: /bin/rm
+        centos-kilo ALL=(ALL) NOPASSWD: /bin/rm
+        centos-liberty ALL=(ALL) NOPASSWD: /bin/rm
+        centos-master ALL=(ALL) NOPASSWD: /bin/rm
+        fedora-master ALL=(ALL) NOPASSWD: /bin/rm
+    path: /etc/sudoers.d/91-delorean-users
+    permissions: 0440
+
+  - content: |
         cd ~/rdoinfo
         git remote update
         git pull
